@@ -1,0 +1,5 @@
+jar {
+    manifest {
+        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle3.Activator'
+    }
+}

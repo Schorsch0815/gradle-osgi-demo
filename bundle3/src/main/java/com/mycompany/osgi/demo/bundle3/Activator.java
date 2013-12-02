@@ -1,4 +1,4 @@
-package tv.ustream.osgi.demo.bundle1;
+package com.mycompany.osgi.demo.bundle3;
 
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;

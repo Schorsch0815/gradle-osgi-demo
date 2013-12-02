@@ -1,14 +1,15 @@
-group = 'tv.ustream.osgi.demo'
 version = '1.0'
 
 allprojects {
+    group = 'com.mycompany.osgi.demo'
+
     apply plugin: 'base'
     apply plugin: 'idea'
     apply plugin: 'java'
-    def bundleName = ""
 }
 
 subprojects {
+
     apply plugin: 'osgi'
 
     jar {

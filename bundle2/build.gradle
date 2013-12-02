@@ -4,6 +4,6 @@ dependencies {
 
 jar {
     manifest {
-        instruction 'Bundle-Activator', 'tv.ustream.osgi.demo.bundle2.Activator'
+        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle2.Activator'
     }
 }

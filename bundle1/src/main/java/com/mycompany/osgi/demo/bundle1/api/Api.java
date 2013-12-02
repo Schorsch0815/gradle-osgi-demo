@@ -1,4 +1,4 @@
-package tv.ustream.osgi.demo.bundle1.api;
+package com.mycompany.osgi.demo.bundle1.api;
 
 /**
  * @author bandesz

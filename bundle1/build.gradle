@@ -1,6 +1,6 @@
 jar {
     manifest {
-        instruction 'Bundle-Activator', 'tv.ustream.osgi.demo.bundle1.Activator'
-        instruction 'Export-Package', 'tv.ustream.osgi.demo.bundle1.api'
+        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle1.Activator'
+        instruction 'Export-Package', 'com.mycompany.osgi.demo.bundle1.api'
     }
 }
