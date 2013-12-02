@@ -1,0 +1,9 @@
+dependencies {
+    compile project(":bundle1")
+}
+
+jar {
+    manifest {
+        instruction 'Bundle-Activator', 'tv.ustream.osgi.demo.bundle2.Activator'
+    }
+}

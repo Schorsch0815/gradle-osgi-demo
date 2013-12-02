@@ -1,0 +1,170 @@
+group = 'tv.ustream.osgi.demo'
+version = '1.0'
+
+allprojects {
+    apply plugin: 'base'
+    apply plugin: 'idea'
+    apply plugin: 'java'
+    def bundleName = ""
+}
+
+subprojects {
+    apply plugin: 'osgi'
+
+    jar {
+        manifest {
+            name = bundleName
+        }
+    }
+
+    repositories {
+        ivy {
+            artifactPattern "http://repository.springsource.com/ivy/bundles/release/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+            artifactPattern "http://repository.springsource.com/ivy/bundles/external/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+            ivyPattern "http://repository.springsource.com/ivy/bundles/release/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+            ivyPattern "http://repository.springsource.com/ivy/bundles/external/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+        }
+    }
+
+    dependencies {
+        compile group: 'org.eclipse.osgi', name: 'org.eclipse.osgi', version: '3.7.1.R37x_v20110808-1106', configuration: 'runtime', ext: 'jar'
+        testCompile group: 'org.junit', name: 'com.springsource.org.junit', version: '4.8.2', configuration: 'runtime', ext: 'jar'
+    }
+
+    task sourcesJar(type: Jar, dependsOn: classes) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+        classifier = 'javadoc'
+        from javadoc.destinationDir
+    }
+
+    artifacts {
+        archives sourcesJar
+        archives javadocJar
+    }
+
+}
+
+task prepareRun {
+    outputs.dir runDir
+    doLast {
+        println "Installing Karaf to " + runDir
+
+        println "Downloading " + karafUrl + " to " + temporaryDir.getAbsolutePath()
+        def filename = karafUrl.split("/").last()
+        def archiveFile = new File(temporaryDir.getAbsolutePath() + "/" + filename)
+        new URL(karafUrl).withInputStream { i -> archiveFile.withOutputStream { it << i } }
+
+        println "Extracting archive to " + temporaryDir.getAbsolutePath()
+        copy {
+            from tarTree(archiveFile)
+            into temporaryDir.getAbsolutePath()
+        }
+
+        def archiveDir = temporaryDir.getAbsolutePath() + "/" + filename.replace(".tar.gz", "") + "/"
+        println "Copying from " + archiveDir + " to " + runDir
+
+        mkdir(runDir)
+
+        copy {
+            from archiveDir
+            into runDir
+        }
+
+        delete archiveFile, archiveDir
+    }
+}
+
+/*task run (dependsOn: prepareRun) << {
+    println "Running from " + runDir
+    exec {
+        workingDir runDir
+        commandLine  "bin/karaf"
+        standardInput System.in
+    }
+}*/
+
+task start (dependsOn: prepareRun) << {
+    println "Running from " + runDir
+    exec {
+        workingDir runDir
+        commandLine  "bin/start"
+    }
+}
+
+task stop << {
+    println "Running from " + runDir
+    exec {
+        workingDir runDir
+        commandLine  "bin/stop"
+    }
+}
+
+task deploy(dependsOn: getTasksByName("jar", true)) << {
+    println "Deploying to " + runDir
+    project.subprojects.each { p ->
+        p.tasks.withType(Jar)*.outputs.each { o ->
+            o.getFiles().each { f ->
+                if (f.exists()) {
+                    ant.copy(file: f, todir: runDir + "/deploy")
+                }
+            }
+        }
+    }
+}
+
+task createBundle << {
+    def console = System.console()
+    def bundleName
+    def bundleVersion
+    if (console) {
+        bundleName = console.readLine('> Please enter the name of the bundle: ')
+        bundleVersion = console.readLine('> Please specify version (default: 1.0.0): ')
+        if (!bundleVersion) {
+            bundleVersion = '1.0.0'
+        }
+    } else {
+        throw new GradleException("Cannot access console in daemon mode, please use: ./gradlew --no-daemon createBundle")
+    }
+    
+    def moduleRoot = "${rootDir}/${bundleName}"
+
+    mkdir("${moduleRoot}")
+    mkdir("${moduleRoot}/src")
+    mkdir("${moduleRoot}/src/main")
+    mkdir("${moduleRoot}/src/main/java")
+    mkdir("${moduleRoot}/src/main/resources")
+    mkdir("${moduleRoot}/src/test")
+    mkdir("${moduleRoot}/src/test/java")
+    mkdir("${moduleRoot}/src/test/resources")
+    
+    def imlFile = new File("${moduleRoot}/${bundleName}.iml")
+    imlFile.text = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://\$MODULE_DIR\$">
+      <sourceFolder url="file://\$MODULE_DIR\$/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://\$MODULE_DIR\$/src/main/resources" isTestSource="false" />
+      <sourceFolder url="file://\$MODULE_DIR\$/src/test/java" isTestSource="true" />
+      <sourceFolder url="file://\$MODULE_DIR\$/src/test/resources" isTestSource="true" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
+    """
+
+    def gradleFile = new File("${moduleRoot}/build.gradle")
+    gradleFile.text = ""
+
+    def propertiesFile = new File("${moduleRoot}/gradle.properties")
+    propertiesFile.text = """\
+bundleName=${bundleName}
+version=${version}
+    """
+}
