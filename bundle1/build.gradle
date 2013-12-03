@@ -5,6 +5,6 @@ dependencies {
 jar {
     manifest {
         instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle1.Activator'
-        instruction 'Export-Package', 'com.mycompany.osgi.demo.bundle1.api'
+        instruction 'Private-Package', 'com.mycompany.osgi.demo.bundle1'
     }
 }
