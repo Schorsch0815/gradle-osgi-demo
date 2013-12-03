@@ -1,0 +1,7 @@
+<% if (addActivator) { %>
+jar {
+    manifest {
+        instruction 'Bundle-Activator', '${packageName}.Activator'
+    }
+}
+<% } %>

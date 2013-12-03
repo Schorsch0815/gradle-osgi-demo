@@ -1,11 +1,9 @@
-version = '1.0'
-
 allprojects {
-    group = 'com.mycompany.osgi.demo'
-
     apply plugin: 'base'
     apply plugin: 'idea'
     apply plugin: 'java'
+
+    group = 'com.mycompany.osgi.demo'
 }
 
 subprojects {
@@ -79,14 +77,14 @@ task prepareRun {
     }
 }
 
-/*task run (dependsOn: prepareRun) << {
+task run (dependsOn: prepareRun) << {
     println "Running from " + runDir
     exec {
         workingDir runDir
         commandLine  "bin/karaf"
         standardInput System.in
     }
-}*/
+}
 
 task start (dependsOn: prepareRun) << {
     println "Running from " + runDir
@@ -120,10 +118,19 @@ task deploy(dependsOn: getTasksByName("jar", true)) << {
 task createBundle << {
     def console = System.console()
     def bundleName
+    def bundleDescription
     def bundleVersion
+    def addActivator = false
     if (console) {
-        bundleName = console.readLine('> Please enter the name of the bundle: ')
-        bundleVersion = console.readLine('> Please specify version (default: 1.0.0): ')
+        bundleName = console.readLine('> Name of the bundle: ')
+
+        bundleDescription = console.readLine('> Description: ')
+
+        if (console.readLine('> Add activator (y/N): ').toLowerCase() == "y") {
+            addActivator = true
+        }
+
+        bundleVersion = console.readLine('> Version (default: 1.0.0): ')
         if (!bundleVersion) {
             bundleVersion = '1.0.0'
         }
@@ -141,31 +148,45 @@ task createBundle << {
     mkdir("${moduleRoot}/src/test")
     mkdir("${moduleRoot}/src/test/java")
     mkdir("${moduleRoot}/src/test/resources")
+
+    def packageName = "${project.group}.${bundleName}"
+    def packagePath = "${moduleRoot}/src/main/java/" + packageName.replace(".", "/")
+    mkdir(packagePath)
+
+    if (addActivator) {
+        copy {
+            from "${rootDir}/gradle/templates"
+            include 'Activator.java.template'
+            into packagePath
+            rename { file -> "Activator.java"}
+            expand(packageName: packageName)
+        }
+    }
     
-    def imlFile = new File("${moduleRoot}/${bundleName}.iml")
-    imlFile.text = """\
-<?xml version="1.0" encoding="UTF-8"?>
-<module type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" inherit-compiler-output="true">
-    <exclude-output />
-    <content url="file://\$MODULE_DIR\$">
-      <sourceFolder url="file://\$MODULE_DIR\$/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://\$MODULE_DIR\$/src/main/resources" isTestSource="false" />
-      <sourceFolder url="file://\$MODULE_DIR\$/src/test/java" isTestSource="true" />
-      <sourceFolder url="file://\$MODULE_DIR\$/src/test/resources" isTestSource="true" />
-    </content>
-    <orderEntry type="inheritedJdk" />
-    <orderEntry type="sourceFolder" forTests="false" />
-  </component>
-</module>
-    """
+    copy {
+        from "${rootDir}/gradle/templates"
+        include 'module.iml.template'
+        into moduleRoot
+        rename { file -> "${bundleName}.iml"}
+    }
 
-    def gradleFile = new File("${moduleRoot}/build.gradle")
-    gradleFile.text = ""
+    copy {
+        from "${rootDir}/gradle/templates"
+        include 'build.gradle.template'
+        into moduleRoot
+        rename { file -> "build.gradle"}
+        expand(addActivator: addActivator, packageName: packageName)
+    }
 
-    def propertiesFile = new File("${moduleRoot}/gradle.properties")
-    propertiesFile.text = """\
-bundleName=${bundleName}
-version=${version}
-    """
+    copy {
+        from "${rootDir}/gradle/templates"
+        include 'gradle.properties.template'
+        into moduleRoot
+        rename { file -> "gradle.properties"}
+        expand(bundleDescription: bundleDescription, bundleVersion: bundleVersion)
+    }
+
+    def settingsFile = new File("${rootDir}/settings.gradle")
+    settingsFile.text += "include \"${bundleName}\"\n"
+
 }
