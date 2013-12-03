@@ -8,6 +8,7 @@ allprojects {
 
 subprojects {
 
+    apply plugin: 'maven'
     apply plugin: 'osgi'
 
     jar {
@@ -16,18 +17,29 @@ subprojects {
         }
     }
 
+    configurations {
+        provided
+    }
+
+    sourceSets {
+        main { compileClasspath += configurations.provided }
+    }
+
     repositories {
-        ivy {
-            artifactPattern "http://repository.springsource.com/ivy/bundles/release/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
-            artifactPattern "http://repository.springsource.com/ivy/bundles/external/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
-            ivyPattern "http://repository.springsource.com/ivy/bundles/release/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
-            ivyPattern "http://repository.springsource.com/ivy/bundles/external/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
-        }
+        mavenCentral()
     }
 
     dependencies {
-        compile group: 'org.eclipse.osgi', name: 'org.eclipse.osgi', version: '3.7.1.R37x_v20110808-1106', configuration: 'runtime', ext: 'jar'
-        testCompile group: 'org.junit', name: 'com.springsource.org.junit', version: '4.8.2', configuration: 'runtime', ext: 'jar'
+        provided "org.apache.felix:org.apache.felix.framework:4.2.1"
+        compile "org.apache.felix:org.apache.felix.metatype:1.0.8"
+        compile "org.apache.felix:org.apache.felix.dependencymanager:3.1.0"
+        compile "org.apache.felix:org.apache.felix.dependencymanager.shell:3.0.1"
+    }
+
+    jar {
+        manifest {
+            name = bundleName
+        }
     }
 
     task sourcesJar(type: Jar, dependsOn: classes) {
@@ -48,14 +60,18 @@ subprojects {
 }
 
 task prepareRun {
-    outputs.dir runDir
+    outputs.dir karafRunDir
     doLast {
-        println "Installing Karaf to " + runDir
+        println "Installing Karaf to " + karafRunDir
 
-        println "Downloading " + karafUrl + " to " + temporaryDir.getAbsolutePath()
-        def filename = karafUrl.split("/").last()
+        if (new File(karafRunDir).exists()) {
+            throw new GradleException("${karafRunDir} already exists, please run ./gradlew cleanPrepareRun before reinstalling")
+        }
+
+        println "Downloading " + karafDownloadUrl + " to " + temporaryDir.getAbsolutePath()
+        def filename = karafDownloadUrl.split("/").last()
         def archiveFile = new File(temporaryDir.getAbsolutePath() + "/" + filename)
-        new URL(karafUrl).withInputStream { i -> archiveFile.withOutputStream { it << i } }
+        new URL(karafDownloadUrl).withInputStream { i -> archiveFile.withOutputStream { it << i } }
 
         println "Extracting archive to " + temporaryDir.getAbsolutePath()
         copy {
@@ -64,13 +80,13 @@ task prepareRun {
         }
 
         def archiveDir = temporaryDir.getAbsolutePath() + "/" + filename.replace(".tar.gz", "") + "/"
-        println "Copying from " + archiveDir + " to " + runDir
+        println "Copying from " + archiveDir + " to " + karafRunDir
 
-        mkdir(runDir)
+        mkdir(karafRunDir)
 
         copy {
             from archiveDir
-            into runDir
+            into karafRunDir
         }
 
         delete archiveFile, archiveDir
@@ -78,115 +94,132 @@ task prepareRun {
 }
 
 task run (dependsOn: prepareRun) << {
-    println "Running from " + runDir
+    println "Running from " + karafRunDir
     exec {
-        workingDir runDir
+        workingDir karafRunDir
         commandLine  "bin/karaf"
         standardInput System.in
     }
 }
 
-task start (dependsOn: prepareRun) << {
-    println "Running from " + runDir
-    exec {
-        workingDir runDir
-        commandLine  "bin/start"
+task start (dependsOn: prepareRun) {
+    doLast {
+        println "Running from " + karafRunDir
+        exec {
+            workingDir karafRunDir
+            commandLine  "bin/start"
+        }
     }
 }
 
-task stop << {
-    println "Running from " + runDir
-    exec {
-        workingDir runDir
-        commandLine  "bin/stop"
+task stop {
+    doLast {
+        println "Running from " + karafRunDir
+        exec {
+            workingDir karafRunDir
+            commandLine  "bin/stop"
+        }
     }
 }
 
-task deploy(dependsOn: getTasksByName("jar", true)) << {
-    println "Deploying to " + runDir
-    project.subprojects.each { p ->
-        p.tasks.withType(Jar)*.outputs.each { o ->
-            o.getFiles().each { f ->
-                if (f.exists()) {
-                    ant.copy(file: f, todir: runDir + "/deploy")
-                }
+task deploy(dependsOn: getTasksByName("jar", true)) {
+    doLast {
+        println "Deploying to " + karafRunDir
+
+        def List<File> files = new ArrayList<File>()
+
+        def fileFilter = { f ->
+            !f.getName().contains("org.osgi.") &&
+            !f.getName().contains("org.apache.felix.gogo.runtime") &&
+            !f.getName().contains("org.apache.felix.shell")
+        }
+
+        subprojects.each { p ->
+            p.tasks.withType(Jar).findAll( { it.classifier.isEmpty() } ).outputs.each { o ->
+                o.getFiles().each { files.add(it) }
+            }
+            p.configurations.runtime.findAll( fileFilter ).each { files.add(it) }
+        }
+
+        files.unique().each { f ->
+            ant.copy(file: f, todir: karafRunDir + "/deploy")
+        }
+    }
+}
+
+task createBundle {
+    doLast {
+        def console = System.console()
+        def bundleName
+        def bundleDescription
+        def bundleVersion
+        def addActivator = false
+        if (console) {
+            bundleName = console.readLine('> Name of the bundle: ')
+
+            bundleDescription = console.readLine('> Description: ')
+
+            if (console.readLine('> Add activator (y/N): ').toLowerCase() == "y") {
+                addActivator = true
+            }
+
+            bundleVersion = console.readLine('> Version (default: 1.0.0): ')
+            if (!bundleVersion) {
+                bundleVersion = '1.0.0'
+            }
+        } else {
+            throw new GradleException("Cannot access console in daemon mode, please use: ./gradlew --no-daemon createBundle")
+        }
+
+        def moduleRoot = "${rootDir}/${bundleName}"
+
+        mkdir("${moduleRoot}")
+        mkdir("${moduleRoot}/src")
+        mkdir("${moduleRoot}/src/main")
+        mkdir("${moduleRoot}/src/main/java")
+        mkdir("${moduleRoot}/src/main/resources")
+        mkdir("${moduleRoot}/src/test")
+        mkdir("${moduleRoot}/src/test/java")
+        mkdir("${moduleRoot}/src/test/resources")
+
+        def packageName = "${project.group}.${bundleName}"
+        def packagePath = "${moduleRoot}/src/main/java/" + packageName.replace(".", "/")
+        mkdir(packagePath)
+
+        if (addActivator) {
+            copy {
+                from "${rootDir}/gradle/templates"
+                include 'Activator.java.template'
+                into packagePath
+                rename { file -> "Activator.java"}
+                expand(packageName: packageName)
             }
         }
-    }
-}
 
-task createBundle << {
-    def console = System.console()
-    def bundleName
-    def bundleDescription
-    def bundleVersion
-    def addActivator = false
-    if (console) {
-        bundleName = console.readLine('> Name of the bundle: ')
-
-        bundleDescription = console.readLine('> Description: ')
-
-        if (console.readLine('> Add activator (y/N): ').toLowerCase() == "y") {
-            addActivator = true
-        }
-
-        bundleVersion = console.readLine('> Version (default: 1.0.0): ')
-        if (!bundleVersion) {
-            bundleVersion = '1.0.0'
-        }
-    } else {
-        throw new GradleException("Cannot access console in daemon mode, please use: ./gradlew --no-daemon createBundle")
-    }
-    
-    def moduleRoot = "${rootDir}/${bundleName}"
-
-    mkdir("${moduleRoot}")
-    mkdir("${moduleRoot}/src")
-    mkdir("${moduleRoot}/src/main")
-    mkdir("${moduleRoot}/src/main/java")
-    mkdir("${moduleRoot}/src/main/resources")
-    mkdir("${moduleRoot}/src/test")
-    mkdir("${moduleRoot}/src/test/java")
-    mkdir("${moduleRoot}/src/test/resources")
-
-    def packageName = "${project.group}.${bundleName}"
-    def packagePath = "${moduleRoot}/src/main/java/" + packageName.replace(".", "/")
-    mkdir(packagePath)
-
-    if (addActivator) {
         copy {
             from "${rootDir}/gradle/templates"
-            include 'Activator.java.template'
-            into packagePath
-            rename { file -> "Activator.java"}
-            expand(packageName: packageName)
+            include 'module.iml.template'
+            into moduleRoot
+            rename { file -> "${bundleName}.iml"}
         }
-    }
-    
-    copy {
-        from "${rootDir}/gradle/templates"
-        include 'module.iml.template'
-        into moduleRoot
-        rename { file -> "${bundleName}.iml"}
-    }
 
-    copy {
-        from "${rootDir}/gradle/templates"
-        include 'build.gradle.template'
-        into moduleRoot
-        rename { file -> "build.gradle"}
-        expand(addActivator: addActivator, packageName: packageName)
+        copy {
+            from "${rootDir}/gradle/templates"
+            include 'build.gradle.template'
+            into moduleRoot
+            rename { file -> "build.gradle"}
+            expand(addActivator: addActivator, packageName: packageName)
+        }
+
+        copy {
+            from "${rootDir}/gradle/templates"
+            include 'gradle.properties.template'
+            into moduleRoot
+            rename { file -> "gradle.properties"}
+            expand(bundleDescription: bundleDescription, bundleVersion: bundleVersion)
+        }
+
+        def settingsFile = new File("${rootDir}/settings.gradle")
+        settingsFile.text += "include \"${bundleName}\"\n"
     }
-
-    copy {
-        from "${rootDir}/gradle/templates"
-        include 'gradle.properties.template'
-        into moduleRoot
-        rename { file -> "gradle.properties"}
-        expand(bundleDescription: bundleDescription, bundleVersion: bundleVersion)
-    }
-
-    def settingsFile = new File("${rootDir}/settings.gradle")
-    settingsFile.text += "include \"${bundleName}\"\n"
-
 }

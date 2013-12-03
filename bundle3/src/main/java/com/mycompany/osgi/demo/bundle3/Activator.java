@@ -3,9 +3,6 @@ package com.mycompany.osgi.demo.bundle3;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 
-/**
- * @author bandesz
- */
 public class Activator implements BundleActivator
 {
     @Override

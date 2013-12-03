@@ -1,3 +1,7 @@
+dependencies {
+    compile project(":api.api1")
+}
+
 jar {
     manifest {
         instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle1.Activator'

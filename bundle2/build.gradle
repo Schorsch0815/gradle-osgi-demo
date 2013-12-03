@@ -1,5 +1,5 @@
 dependencies {
-    compile project(":bundle1")
+    compile project(":api.api1")
 }
 
 jar {
