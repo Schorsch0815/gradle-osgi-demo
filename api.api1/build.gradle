@@ -1,7 +1,5 @@
-
 jar {
     manifest {
         instruction 'Export-Package', 'com.mycompany.osgi.demo.api.api1'
     }
 }
-

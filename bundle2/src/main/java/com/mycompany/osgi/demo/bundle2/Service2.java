@@ -23,6 +23,7 @@ public class Service2 implements Runnable
             {
                 if (api != null) {
                     System.out.println(api.doSomething("hello"));
+                    api.addMedia(new Media());
                     break;
                 }
                 Thread.sleep(1000);

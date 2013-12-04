@@ -5,4 +5,6 @@ public interface Api1
 
     public String doSomething(String input);
 
+    public void addMedia(IMedia media);
+
 }

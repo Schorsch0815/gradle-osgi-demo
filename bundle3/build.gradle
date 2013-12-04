@@ -1,5 +1,6 @@
 jar {
     manifest {
         instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle3.Activator'
+        instruction 'Export-Package', 'com.mycompany.osgi.demo.bundle3.media'
     }
 }
