@@ -6,6 +6,10 @@ import org.apache.felix.dm.DependencyActivatorBase;
 import org.apache.felix.dm.DependencyManager;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.cm.ManagedService;
+
+import java.util.Dictionary;
+import java.util.Hashtable;
 
 public class Activator extends DependencyActivatorBase implements BundleActivator
 {
@@ -14,8 +18,13 @@ public class Activator extends DependencyActivatorBase implements BundleActivato
     {
         System.out.println(getClass().getCanonicalName() + " [" + hashCode() + "] started");
 
+        Dictionary props = new Hashtable();
+        props.put("service.pid", ApiImplementation.class.getCanonicalName());
+
+        String interfaces[] = { Api1.class.getName(), ManagedService.class.getName() };
+
         manager.add(createComponent()
-                .setInterface(Api1.class.getName(), null)
+                .setInterface(interfaces, props)
                 .setImplementation(ApiImplementation.class));
     }
 

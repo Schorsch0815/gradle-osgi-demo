@@ -34,6 +34,7 @@ subprojects {
 
     dependencies {
         provided "org.apache.felix:org.apache.felix.framework:4.2.1"
+        provided 'org.apache.felix:org.apache.felix.configadmin:1.8.0'
         compile "org.apache.felix:org.apache.felix.dependencymanager:3.1.0"
         runtime "org.apache.felix:org.apache.felix.dependencymanager.shell:3.0.1"
         runtime "org.apache.felix:org.apache.felix.metatype:1.0.8"
