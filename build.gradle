@@ -1,3 +1,5 @@
+import java.util.jar.JarFile
+
 allprojects {
     apply plugin: 'base'
     apply plugin: 'idea'
@@ -15,6 +17,7 @@ subprojects {
         manifest {
             name = bundleName
         }
+        archiveName = project.group + "." + project.name + "-" + version + ".jar"
     }
 
     configurations {
@@ -32,8 +35,8 @@ subprojects {
     dependencies {
         provided "org.apache.felix:org.apache.felix.framework:4.2.1"
         compile "org.apache.felix:org.apache.felix.dependencymanager:3.1.0"
-        runtime "org.apache.felix:org.apache.felix.metatype:1.0.8"
         runtime "org.apache.felix:org.apache.felix.dependencymanager.shell:3.0.1"
+        runtime "org.apache.felix:org.apache.felix.metatype:1.0.8"
     }
 
     jar {
@@ -126,23 +129,30 @@ task deploy(dependsOn: getTasksByName("jar", true)) {
     doLast {
         println "Deploying to " + karafRunDir
 
-        def List<File> files = new ArrayList<File>()
 
-        def fileFilter = { f ->
-            !f.getName().contains("org.osgi.") &&
-            !f.getName().contains("org.apache.felix.gogo.runtime") &&
-            !f.getName().contains("org.apache.felix.shell")
-        }
+        def excluded = [
+                "osgi.core",
+                "osgi.cmpn",
+                "org.apache.felix.gogo.runtime",
+                "org.apache.felix.shell"
+        ]
+
+        def List<File> files = new ArrayList<File>()
 
         subprojects.each { p ->
             p.tasks.withType(Jar).findAll( { it.classifier.isEmpty() } ).outputs.each { o ->
                 o.getFiles().each { files.add(it) }
             }
-            p.configurations.runtime.findAll( fileFilter ).each { files.add(it) }
+            p.configurations.runtime.each { files.add(it) }
         }
 
+        println "Bundle list:"
         files.unique().each { f ->
-            ant.copy(file: f, todir: karafRunDir + "/deploy")
+            def bundleName = new JarFile(f).getManifest().mainAttributes.getValue("Bundle-SymbolicName")
+            if (bundleName != null && !excluded.contains(bundleName)) {
+                println " - " + bundleName
+                ant.copy(file: f, todir: karafRunDir + "/deploy")
+            }
         }
     }
 }
