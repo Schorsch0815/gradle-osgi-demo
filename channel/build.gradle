@@ -1,0 +1,7 @@
+
+jar {
+    manifest {
+        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.channel.Activator'
+    }
+}
+

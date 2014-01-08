@@ -1,5 +1,0 @@
-jar {
-    manifest {
-        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.bundle4.Activator'
-    }
-}

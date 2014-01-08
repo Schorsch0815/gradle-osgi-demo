@@ -1,0 +1,10 @@
+dependencies {
+    compile project(":channel")
+    compile project(":stat")
+}
+jar {
+    manifest {
+        instruction 'Bundle-Activator', 'com.mycompany.osgi.demo.client.Activator'
+    }
+}
+
